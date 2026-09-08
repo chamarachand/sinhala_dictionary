@@ -1,5 +1,5 @@
 abstract class UrlConstants {
-  static const baseUrl = 'http://localhost:3000/api/';
+  static const baseUrl = 'https://sinhala-dictionary.vercel.app/';
   static const englishInsights = 'insights/english';
   static const sinhalaInsights = 'insights/sinhala';
   static const getRefreshToken = 'auth/refresh';
