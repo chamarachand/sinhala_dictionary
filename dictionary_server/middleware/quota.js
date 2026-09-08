@@ -1,28 +1,36 @@
-import { users } from "../storage/userStore.js";
+// middleware/quota.js
+import { Redis } from "@upstash/redis";
 
-export function checkDailyQuota(req, res, next) {
+export async function checkDailyQuota(req, res, next) {
   const userId = req.userId;
-  const user = users.get(userId);
 
-  if (!user) {
+  if (!userId) {
     return res.status(401).json({ error: "User session not found" });
   }
 
-  const today = new Date().toDateString();
+  const redis = Redis.fromEnv();
 
-  // Reset quota if it's a new day
-  if (user.lastReset !== today) {
-    user.dailyCount = 0;
-    user.lastReset = today;
+  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const quotaKey = `quota:${userId}:${today}`;
+  const DAILY_LIMIT = 25;
+
+  try {
+    const currentCount = await redis.incr(quotaKey);
+
+    // Set 24h key expiration on the first request of the day
+    if (currentCount === 1) {
+      await redis.expire(quotaKey, 86400);
+    }
+
+    if (currentCount > DAILY_LIMIT) {
+      return res.status(429).json({
+        error: `Daily limit reached (${DAILY_LIMIT}/${DAILY_LIMIT}). Try again tomorrow!`,
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error("Redis quota error:", error);
+    return res.status(500).json({ error: "Internal server error checking quota" });
   }
-
-  const DAILY_LIMIT = 20; //
-  if (user.dailyCount >= DAILY_LIMIT) {
-    return res.status(429).json({
-      error: `Daily limit reached (${DAILY_LIMIT}/${DAILY_LIMIT}). Try again tomorrow!`,
-    });
-  }
-
-  user.dailyCount += 1;
-  next();
 }
